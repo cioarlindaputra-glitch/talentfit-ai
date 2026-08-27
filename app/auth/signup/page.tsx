@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { supabase } from '@/lib/supabase';
+import { useRouter } from 'next/navigation';
 
 export default function SignupPage() {
   const [email, setEmail] = useState('');
@@ -10,36 +12,86 @@ export default function SignupPage() {
   const [fullName, setFullName] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const router = useRouter();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setLoading(true);
 
-    // Validation
-    if (!fullName || !email || !password || !confirmPassword) {
-      setError('Semua field harus diisi');
-      return;
+    try {
+      // Validation
+      if (!fullName || !email || !password || !confirmPassword) {
+        setError('Semua field harus diisi');
+        setLoading(false);
+        return;
+      }
+
+      if (password !== confirmPassword) {
+        setError('Password tidak cocok');
+        setLoading(false);
+        return;
+      }
+
+      if (password.length < 6) {
+        setError('Password minimal 6 karakter');
+        setLoading(false);
+        return;
+      }
+
+      // Check apakah email sudah terdaftar
+      const { data: existingUser } = await supabase
+        .from('users')
+        .select('email')
+        .eq('email', email)
+        .single();
+
+      if (existingUser) {
+        setError('Email sudah terdaftar');
+        setLoading(false);
+        return;
+      }
+
+      // Insert user ke database
+      const { data, error: insertError } = await supabase
+        .from('users')
+        .insert([
+          {
+            email,
+            full_name: fullName,
+            password, // In production, use bcrypt hash!
+          },
+        ])
+        .select()
+        .single();
+
+      if (insertError || !data) {
+        setError('Gagal membuat akun. Coba lagi.');
+        console.error(insertError);
+        setLoading(false);
+        return;
+      }
+
+      // Success
+      setSuccess(true);
+      
+      // Reset form
+      setFullName('');
+      setEmail('');
+      setPassword('');
+      setConfirmPassword('');
+
+      // Redirect ke login setelah 2 detik
+      setTimeout(() => {
+        router.push('/auth/login');
+      }, 2000);
+    } catch (err) {
+      setError('Terjadi kesalahan. Coba lagi.');
+      console.error(err);
+    } finally {
+      setLoading(false);
     }
-
-    if (password !== confirmPassword) {
-      setError('Password tidak cocok');
-      return;
-    }
-
-    if (password.length < 6) {
-      setError('Password minimal 6 karakter');
-      return;
-    }
-
-    // Simulate signup (replace with actual API call later)
-    console.log('Signup attempt:', { fullName, email, password });
-    setSuccess(true);
-    
-    // Reset form
-    setFullName('');
-    setEmail('');
-    setPassword('');
-    setConfirmPassword('');
   };
 
   return (
@@ -53,7 +105,7 @@ export default function SignupPage() {
 
           {success && (
             <div className="mb-4 p-4 bg-green-100 border border-green-400 text-green-700 rounded-lg text-sm">
-              ✓ Akun berhasil dibuat! Silakan login.
+              ✓ Akun berhasil dibuat! Redirecting ke login...
             </div>
           )}
 
@@ -75,6 +127,7 @@ export default function SignupPage() {
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
                 placeholder="John Doe"
                 required
+                disabled={loading}
               />
             </div>
 
@@ -89,6 +142,7 @@ export default function SignupPage() {
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
                 placeholder="you@example.com"
                 required
+                disabled={loading}
               />
             </div>
 
@@ -103,6 +157,7 @@ export default function SignupPage() {
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
                 placeholder="••••••••"
                 required
+                disabled={loading}
               />
             </div>
 
@@ -117,14 +172,16 @@ export default function SignupPage() {
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
                 placeholder="••••••••"
                 required
+                disabled={loading}
               />
             </div>
 
             <button
               type="submit"
-              className="w-full bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700 transition mt-6"
+              disabled={loading}
+              className="w-full bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700 transition mt-6 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Daftar
+              {loading ? 'Loading...' : 'Daftar'}
             </button>
           </form>
 
