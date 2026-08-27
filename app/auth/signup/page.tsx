@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 
 export default function SignupPage() {
@@ -40,43 +39,33 @@ export default function SignupPage() {
         return;
       }
 
-      // Check apakah email sudah terdaftar
-      const { data: existingUser } = await supabase
-        .from('users')
-        .select('email')
-        .eq('email', email)
-        .single();
+      console.log('Sending signup request...');
 
-      if (existingUser) {
-        setError('Email sudah terdaftar');
-        setLoading(false);
-        return;
-      }
+      // Call API
+      const response = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          password,
+          full_name: fullName,
+        }),
+      });
 
-      // Insert user ke database
-      const { data, error: insertError } = await supabase
-        .from('users')
-        .insert([
-          {
-            email,
-            full_name: fullName,
-            password, // In production, use bcrypt hash!
-          },
-        ])
-        .select()
-        .single();
+      console.log('Response status:', response.status);
+      const data = await response.json();
+      console.log('Response data:', data);
 
-      if (insertError || !data) {
-        setError('Gagal membuat akun. Coba lagi.');
-        console.error(insertError);
+      if (!response.ok) {
+        setError(data.error || 'Gagal mendaftar');
         setLoading(false);
         return;
       }
 
       // Success
       setSuccess(true);
-      
-      // Reset form
       setFullName('');
       setEmail('');
       setPassword('');
@@ -86,9 +75,9 @@ export default function SignupPage() {
       setTimeout(() => {
         router.push('/auth/login');
       }, 2000);
-    } catch (err) {
-      setError('Terjadi kesalahan. Coba lagi.');
-      console.error(err);
+    } catch (err: any) {
+      console.error('Error detail:', err);
+      setError(err.message || 'Terjadi kesalahan. Coba lagi.');
     } finally {
       setLoading(false);
     }
