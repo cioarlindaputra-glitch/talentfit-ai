@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
@@ -18,38 +17,38 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      // Query user dari database
-      const { data, error: queryError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('email', email)
-        .single();
+      console.log('Sending login request...');
 
-      if (queryError || !data) {
-        setError('Email atau password salah');
-        setLoading(false);
-        return;
-      }
+      // Call API
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          password,
+        }),
+      });
 
-      // Check password (simple comparison - di production gunakan bcrypt)
-      if (data.password !== password) {
-        setError('Email atau password salah');
+      console.log('Response status:', response.status);
+      const data = await response.json();
+      console.log('Response data:', data);
+
+      if (!response.ok) {
+        setError(data.error || 'Gagal login');
         setLoading(false);
         return;
       }
 
       // Save user session ke localStorage
-      localStorage.setItem('user', JSON.stringify({
-        id: data.id,
-        email: data.email,
-        full_name: data.full_name,
-      }));
+      localStorage.setItem('user', JSON.stringify(data.user));
 
       // Redirect ke dashboard
       router.push('/dashboard');
-    } catch (err) {
-      setError('Terjadi kesalahan. Coba lagi.');
-      console.error(err);
+    } catch (err: any) {
+      console.error('Error detail:', err);
+      setError(err.message || 'Terjadi kesalahan. Coba lagi.');
     } finally {
       setLoading(false);
     }
